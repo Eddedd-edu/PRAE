@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>QuimicaQuest - Defensa Ambiental</title>
+<style>
+:root{
+  --bg:#050a18;
+  --panel:#0f172a;
+  --accent:#00d2ff;
+  --accent2:#64ffda;
+  --danger:#ff2a2a;
+  --text:#dbeafe;
+  --gold: #ffcc00;
+}
+
+html,body{height:100%; margin:0; background:var(--bg); font-family: monospace; overflow: hidden; color: var(--text); touch-action: none;}
+#wrap{position:relative; height:100vh; display:flex; align-items:center; justify-content:center; flex-direction: column;}
+
+canvas{
+  image-rendering: pixelated;
+  background: #081028;
+  border: 4px solid #1e293b;
+  box-shadow: 0 0 30px rgba(100, 255, 218, 0.1);
+  max-width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  cursor: crosshair;
+}
+
+#hud{
+  position:absolute; left:10px; top:10px;
+  background: rgba(15, 23, 42, 0.9); border: 2px solid var(--accent2);
+  padding:10px; border-radius:4px;
+  backdrop-filter: blur(5px); z-index: 10;
+  pointer-events: none;
+}
+.stat { font-size: 16px; margin-bottom: 5px; font-weight: bold; }
+.stat-eco { color: var(--accent2); }
+.stat-hp { color: var(--danger); }
+.stat-wave { color: var(--gold); }
+
+#shop {
+  display: flex; gap: 10px; margin-top: 15px; width: 100%; max-width: 800px;
+  justify-content: center; padding: 10px; background: rgba(15, 23, 42, 0.8);
+  border-radius: 8px; border: 2px solid #1e293b;
+}
+
+.tower-btn {
+  background: #020617; border: 2px solid #334155; color: white;
+  padding: 10px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+  flex: 1; text-align: center; font-family: inherit;
+}
+.tower-btn.selected { border-color: var(--gold); background: rgba(255, 204, 0, 0.2); }
+.tower-btn:hover { border-color: var(--accent); }
+.tower-cost { color: var(--accent2); font-weight: bold; display: block; margin-top: 5px; }
+
+#intro-modal, #modal, #login-modal {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:90%; max-width: 480px;
+  background:var(--panel); border:4px solid var(--accent2);
+  padding:20px; display:none; z-index:40;
+  box-shadow: 0 0 0 4px #000, 0 10px 50px rgba(0,0,0,0.9);
+}
+
+.def-box {
+    background: rgba(100, 255, 218, 0.1);
+    border-left: 4px solid var(--accent2);
+    padding: 10px; margin: 10px 0; font-size: 14px; color: #fff; line-height: 1.4;
+}
+
+.btn {
+  padding:12px; border:none; background:var(--accent2); color:#061021; 
+  font-weight:bold; cursor:pointer; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+  font-family: inherit; text-transform: uppercase; width: 100%; margin-bottom: 5px;
+}
+.btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0,0.5); }
+.btn-gold { background: var(--gold); color: #000; }
+.btn-accent { background: var(--accent); color: #000; }
+
+input[type="text"] {
+    width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box;
+    background: #000; color: var(--accent2); border: 2px solid var(--accent);
+    font-family: monospace; font-size: 16px; text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  
+  <div id="login-modal" style="display:block;">
+      <h2 style="text-align:center;">PROYECTO AMBIENTAL</h2>
+      <p style="text-align:center;">Ingrese su código de estudiante para iniciar la defensa del ecosistema.</p>
+      <input type="text" id="zip-input" placeholder="Ej: 101022026">
+      <button class="btn btn-gold" id="btn-login">VERIFICAR CÓDIGO</button>
+      <p id="login-msg" style="color:var(--danger); text-align:center; display:none;"></p>
+  </div>
+
+  <div id="intro-modal">
+      <h2 style="text-align:center; color:var(--accent2);">BARRERAS AMBIENTALES</h2>
+      <div class="def-box">
+          <p style="margin-top:0;">Estudiante, tu misión es proteger el río de 10 oleadas de contaminación. Cuentas con tres tecnologías:</p>
+          <ul style="padding-left: 20px; margin-bottom: 0;">
+              <li style="margin-bottom: 8px;"><b>💧 Estación Base:</b> Libera sustancias alcalinas para neutralizar. (Equilibrada)</li>
+              <li style="margin-bottom: 8px;"><b>🌳 Fitorremediación:</b> Filtros vegetales. (Mayor alcance, ataque lento)</li>
+              <li><b>⚡ Catalizador:</b> Acelera reacciones de degradación. (Menor alcance, ataque rapidísimo)</li>
+          </ul>
+          <p style="margin-top:10px; font-size:12px; color:var(--gold);">💡 PISTA: Si debilitas un contaminante aunque no lo elimines, dañará menos al río. ¡Cada acierto te da 1 Eco-Punto!</p>
+      </div>
+      <button class="btn btn-gold" id="btn-start-game">COMENZAR DEFENSA</button>
+  </div>
+
+  <div id="hud">
+    <div class="stat stat-hp">❤️ SALUD RÍO: <span id="ui-hp">20</span></div>
+    <div class="stat stat-eco">🌿 ECO-PUNTOS: <span id="ui-coins">150</span></div>
+    <div class="stat stat-wave">⚠️ OLEADA: <span id="ui-wave">1</span>/10</div>
+    <div style="margin-top:8px; border-top:1px solid #450a0a; padding-top:4px; font-size: 12px; color: #94a3b8;">
+      Toca el mapa para construir.
+    </div>
+  </div>
+
+  <canvas id="game"></canvas>
+
+  <div id="shop">
+      <button class="tower-btn selected" data-type="base">
+          💧 Estación Base<br><span style="font-size:10px">(Neutraliza Ácidos)</span>
+          <span class="tower-cost">50 pts</span>
+      </button>
+      <button class="tower-btn" data-type="filter">
+          🌳 Fitorremediación<br><span style="font-size:10px">(Rango amplio)</span>
+          <span class="tower-cost">100 pts</span>
+      </button>
+      <button class="tower-btn" data-type="catalyst">
+          ⚡ Catalizador<br><span style="font-size:10px">(Ataque rápido)</span>
+          <span class="tower-cost">150 pts</span>
+      </button>
+  </div>
+
+  <div id="modal">
+    <h2 id="modal-title">SISTEMA</h2>
+    <div id="modal-content" style="margin-bottom: 15px;"></div>
+    <button class="btn btn-gold" id="btn-next-wave" style="display:none;">SIGUIENTE OLEADA</button>
+    <button class="btn btn-accent" id="btn-restart" style="display:none;">VOLVER A JUGAR</button>
+  </div>
+
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import { getFirestore, collection, doc, getDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+      apiKey: "AIzaSyCw4JnCCFHVogAEXncodxi9jnwigO7qUIA",
+      authDomain: "quimicaquest.firebaseapp.com",
+      projectId: "quimicaquest",
+      storageBucket: "quimicaquest.firebasestorage.app",
+      messagingSenderId: "796534851347",
+      appId: "1:796534851347:web:ae85716a8b612d889b3ce6"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  let currentStudent = null;
+  let loopActive = false;
+
+  document.getElementById('btn-login').addEventListener('click', async () => {
+      const codeStr = document.getElementById('zip-input').value.trim();
+      const msg = document.getElementById('login-msg');
+      if (!codeStr) return;
+      
+      msg.style.display = 'block'; msg.style.color = 'var(--accent2)';
+      msg.innerText = "Verificando base de datos...";
+
+      try {
+          const docRef = doc(db, "estudiantes", codeStr);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+              currentStudent = docSnap.data(); 
+              currentStudent.zipgrade = codeStr; 
+              document.getElementById('login-modal').style.display = 'none';
+              document.getElementById('intro-modal').style.display = 'block';
+          } else {
+              msg.style.color = 'var(--danger)'; msg.innerText = "Código no encontrado.";
+          }
+      } catch (error) {
+          msg.style.color = 'var(--danger)'; msg.innerText = "Error de conexión.";
+      }
+  });
+
+  document.getElementById('btn-start-game').addEventListener('click', () => {
+      document.getElementById('intro-modal').style.display = 'none';
+      startGame();
+  });
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  
+  const W = 800; const H = 600; const TS = 40; 
+  canvas.width = W; canvas.height = H;
+
+  let state = { hp: 20, coins: 150, wave: 1, isPlaying: false, frame: 0 };
+  let selectedTowerType = 'base';
+  
+  let enemies = [];
+  let towers = [];
+  let projectiles = [];
+
+  const pathTiles = [
+      {x:0, y:2}, {x:4, y:2}, {x:4, y:10}, {x:12, y:10}, 
+      {x:12, y:4}, {x:18, y:4}, {x:18, y:13}, {x:10, y:13}, {x:10, y:15}
+  ];
+
+  const pathPoints = pathTiles.map(p => ({ x: p.x * TS + TS/2, y: p.y * TS + TS/2 }));
+
+  const TOWER_SPECS = {
+      base:     { cost: 50,  range: 100, dmg: 20, cd: 60, color: '#3b82f6', proj: '#93c5fd' }, 
+      filter:   { cost: 100, range: 180, dmg: 35, cd: 90, color: '#22c55e', proj: '#86efac' }, 
+      catalyst: { cost: 150, range: 90,  dmg: 15, cd: 20, color: '#f59e0b', proj: '#fde047' }  
+  };
+
+  // AJUSTE: Velocidades reducidas para los más pesados (hexagon, boss, cloud)
+  const WAVES = [
+      { count: 10, hp: 80,   spd: 1.4, rew: 5,  color: '#eab308', name: "Lluvia Ácida", shape: "drop" },
+      { count: 12, hp: 140,  spd: 1.5, rew: 5,  color: '#ef4444', name: "Óxidos de Nitrógeno", shape: "molecule" },
+      { count: 15, hp: 220,  spd: 0.8, rew: 6,  color: '#a855f7', name: "Metales Pesados", shape: "hexagon" },
+      { count: 20, hp: 350,  spd: 1.2, rew: 6,  color: '#64748b', name: "Smog Fotoquímico", shape: "cloud" },
+      { count: 15, hp: 500,  spd: 0.7, rew: 8,  color: '#ec4899', name: "Microplásticos", shape: "hexagon" },
+      { count: 25, hp: 400,  spd: 1.6, rew: 8,  color: '#84cc16', name: "Agroquímicos", shape: "drop" },
+      { count: 12, hp: 800,  spd: 0.6, rew: 10, color: '#f97316', name: "Lixiviados", shape: "cloud" },
+      { count: 30, hp: 600,  spd: 1.3, rew: 10, color: '#06b6d4', name: "Aguas Residuales", shape: "molecule" },
+      { count: 20, hp: 1200, spd: 0.5, rew: 15, color: '#8b5cf6', name: "Desechos Radiactivos", shape: "hexagon" },
+      { count: 1,  hp: 8000, spd: 0.4, rew: 100,color: '#000000', name: "Derrame de Crudo (JEFE)", shape: "boss" }
+  ];
+
+  let currentWaveEnemies = 0;
+  let spawnTimer = 0;
+
+  function dist(x1,y1, x2,y2) { return Math.hypot(x2-x1, y2-y1); }
+
+  class Enemy {
+      constructor(waveData) {
+          this.x = pathPoints[0].x; this.y = pathPoints[0].y;
+          this.pathIdx = 1;
+          this.hp = waveData.hp; this.maxHp = waveData.hp;
+          this.spd = waveData.spd; this.rew = waveData.rew;
+          this.color = waveData.color;
+          this.shape = waveData.shape;
+          this.size = waveData.shape === 'boss' ? 25 : 12; 
+      }
+      update() {
+          let target = pathPoints[this.pathIdx];
+          if(!target) return;
+          
+          let d = dist(this.x, this.y, target.x, target.y);
+          if (d < this.spd) {
+              this.x = target.x; this.y = target.y;
+              this.pathIdx++;
+              if(this.pathIdx >= pathPoints.length) {
+                  let ratio = this.hp / this.maxHp;
+                  let rawDamage = (this.shape === 'boss' ? 10 : 1) * ratio;
+                  state.hp -= rawDamage; 
+                  updateHUD();
+                  this.hp = 0; 
+              }
+          } else {
+              this.x += (target.x - this.x) / d * this.spd;
+              this.y += (target.y - this.y) / d * this.spd;
+          }
+      }
+      draw() {
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          ctx.fillStyle = this.color;
+          ctx.strokeStyle = "rgba(255,255,255,0.3)";
+          ctx.lineWidth = 2;
+          
+          ctx.beginPath();
+          switch(this.shape) {
+              case 'drop':
+                  ctx.moveTo(0, -this.size);
+                  ctx.bezierCurveTo(this.size, -this.size/2, this.size, this.size, 0, this.size);
+                  ctx.bezierCurveTo(-this.size, this.size, -this.size, -this.size/2, 0, -this.size);
+                  break;
+              case 'molecule':
+                  ctx.arc(0, 0, this.size-2, 0, Math.PI*2);
+                  ctx.fill(); ctx.beginPath();
+                  ctx.fillStyle = "#f87171";
+                  ctx.arc(-this.size/1.5, -this.size/1.5, this.size/2, 0, Math.PI*2);
+                  ctx.fill(); ctx.beginPath();
+                  ctx.arc(this.size/1.5, this.size/1.5, this.size/2, 0, Math.PI*2);
+                  break;
+              case 'hexagon':
+                  for (let i = 0; i < 6; i++) {
+                      ctx.lineTo(this.size * Math.cos(i * Math.PI / 3), this.size * Math.sin(i * Math.PI / 3));
+                  }
+                  ctx.closePath();
+                  break;
+              case 'cloud':
+                  ctx.arc(0, 0, this.size, 0, Math.PI*2); ctx.fill(); ctx.beginPath();
+                  ctx.arc(-this.size/1.2, this.size/2, this.size/1.2, 0, Math.PI*2); ctx.fill(); ctx.beginPath();
+                  ctx.arc(this.size/1.2, this.size/2, this.size/1.2, 0, Math.PI*2);
+                  break;
+              case 'boss':
+                  let pulse = Math.sin(state.frame * 0.1) * 3;
+                  ctx.arc(0, 0, this.size + pulse, 0, Math.PI*2);
+                  break;
+              default:
+                  ctx.arc(0, 0, this.size, 0, Math.PI*2);
+          }
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          ctx.fillStyle = "red"; ctx.fillRect(this.x - 15, this.y - this.size - 10, 30, 4);
+          ctx.fillStyle = "#22c55e"; ctx.fillRect(this.x - 15, this.y - this.size - 10, 30 * (Math.max(0, this.hp)/this.maxHp), 4);
+      }
+  }
+
+  class Tower {
+      constructor(tx, ty, type) {
+          this.x = tx * TS + TS/2; this.y = ty * TS + TS/2;
+          this.type = type;
+          this.spec = TOWER_SPECS[type];
+          this.timer = 0;
+      }
+      update() {
+          if (this.timer > 0) this.timer--;
+          if (this.timer <= 0) {
+              let target = null; let minDist = this.spec.range;
+              for (let e of enemies) {
+                  let d = dist(this.x, this.y, e.x, e.y);
+                  if (d < minDist) { minDist = d; target = e; }
+              }
+              if (target) {
+                  projectiles.push(new Projectile(this.x, this.y, target, this.spec));
+                  this.timer = this.spec.cd;
+              }
+          }
+      }
+      draw() {
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          
+          switch(this.type) {
+              case 'base':
+                  ctx.fillStyle = this.spec.color;
+                  ctx.beginPath();
+                  ctx.moveTo(0, -15);
+                  ctx.bezierCurveTo(15, -5, 15, 15, 0, 15);
+                  ctx.bezierCurveTo(-15, 15, -15, -5, 0, -15);
+                  ctx.fill();
+                  break;
+              case 'filter':
+                  ctx.fillStyle = "#78350f";
+                  ctx.fillRect(-4, 0, 8, 15);
+                  ctx.fillStyle = this.spec.color;
+                  ctx.beginPath();
+                  ctx.arc(0, -5, 12, 0, Math.PI*2); ctx.fill(); ctx.beginPath();
+                  ctx.arc(-8, 2, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath();
+                  ctx.arc(8, 2, 8, 0, Math.PI*2); ctx.fill();
+                  break;
+              case 'catalyst':
+                  ctx.fillStyle = "#334155";
+                  ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+                  ctx.fillStyle = this.spec.color;
+                  ctx.beginPath();
+                  ctx.moveTo(-4, -10); ctx.lineTo(6, -10); ctx.lineTo(2, 0); 
+                  ctx.lineTo(8, 0); ctx.lineTo(-4, 12); ctx.lineTo(0, 2); ctx.lineTo(-6, 2);
+                  ctx.closePath();
+                  ctx.fill();
+                  break;
+          }
+          
+          ctx.strokeStyle = "rgba(255,255,255,0.2)";
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI*2); ctx.stroke();
+          
+          ctx.restore();
+      }
+  }
+
+  class Projectile {
+      constructor(x, y, target, spec) {
+          this.x = x; this.y = y; this.target = target;
+          this.spec = spec; this.spd = 8;
+      }
+      update() {
+          if(this.target.hp <= 0) return true; 
+          let d = dist(this.x, this.y, this.target.x, this.target.y);
+          if (d < this.spd) {
+              this.target.hp -= this.spec.dmg;
+              // AJUSTE: Bono de 1 punto por acierto
+              state.coins += 1;
+              updateHUD();
+              return true; 
+          } else {
+              this.x += (this.target.x - this.x) / d * this.spd;
+              this.y += (this.target.y - this.y) / d * this.spd;
+              return false;
+          }
+      }
+      draw() {
+          ctx.fillStyle = this.spec.proj;
+          ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+          ctx.shadowBlur = 10; ctx.shadowColor = this.spec.proj;
+          ctx.fill(); ctx.shadowBlur = 0;
+      }
+  }
+
+  const shopBtns = document.querySelectorAll('.tower-btn');
+  shopBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+          shopBtns.forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedTowerType = btn.dataset.type;
+      });
+  });
+
+  canvas.addEventListener('mousedown', (e) => buildTower(e));
+  canvas.addEventListener('touchstart', (e) => buildTower(e.touches[0]));
+
+  function buildTower(e) {
+      if(!state.isPlaying) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      
+      const clickX = (e.clientX - rect.left) * scaleX;
+      const clickY = (e.clientY - rect.top) * scaleY;
+      
+      const tx = Math.floor(clickX / TS);
+      const ty = Math.floor(clickY / TS);
+
+      let onPath = false;
+      const tCenter = {x: tx*TS + TS/2, y: ty*TS + TS/2};
+      for(let i=0; i<pathPoints.length-1; i++){
+          let p1 = pathPoints[i], p2 = pathPoints[i+1];
+          let d = distToSegment(tCenter, p1, p2);
+          if (d < TS) { onPath = true; break; }
+      }
+
+      let occupied = towers.some(t => Math.floor(t.x/TS) === tx && Math.floor(t.y/TS) === ty);
+
+      if (onPath || occupied) return; 
+
+      const spec = TOWER_SPECS[selectedTowerType];
+      if (state.coins >= spec.cost) {
+          state.coins -= spec.cost;
+          towers.push(new Tower(tx, ty, selectedTowerType));
+          updateHUD();
+      }
+  }
+
+  function distToSegment(p, v, w) {
+    let l2 = dist(v.x, v.y, w.x, w.y)**2;
+    if (l2 === 0) return dist(p.x, p.y, v.x, v.y);
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return dist(p.x, p.y, v.x + t * (w.x - v.x), v.y + t * (w.y - v.y));
+  }
+
+  function updateHUD() {
+      document.getElementById('ui-hp').innerText = Math.ceil(Math.max(0, state.hp));
+      document.getElementById('ui-coins').innerText = Math.floor(state.coins);
+      document.getElementById('ui-wave').innerText = Math.min(state.wave, WAVES.length);
+  }
+
+  function update() {
+      if (!state.isPlaying) return;
+      state.frame++;
+
+      if (state.wave <= WAVES.length) {
+          let currentWaveData = WAVES[state.wave - 1];
+          if (currentWaveEnemies < currentWaveData.count) {
+              spawnTimer--;
+              if (spawnTimer <= 0) {
+                  enemies.push(new Enemy(currentWaveData));
+                  currentWaveEnemies++;
+                  spawnTimer = 60; 
+              }
+          } else if (enemies.length === 0) {
+              state.isPlaying = false; 
+              state.coins += 50; 
+              updateHUD();
+              
+              if(state.wave >= WAVES.length) {
+                  endGame(true);
+              } else {
+                  showWaveModal();
+              }
+          }
+      }
+
+      towers.forEach(t => t.update());
+      
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+          if (projectiles[i].update()) projectiles.splice(i, 1);
+      }
+
+      for (let i = enemies.length - 1; i >= 0; i--) {
+          enemies[i].update();
+          if (enemies[i].hp <= 0) {
+              if(enemies[i].pathIdx < pathPoints.length) {
+                  state.coins += enemies[i].rew;
+                  updateHUD();
+              }
+              enemies.splice(i, 1);
+          }
+      }
+
+      if (state.hp <= 0) endGame(false);
+  }
+
+  function draw() {
+      ctx.clearRect(0,0,W,H);
+      
+      ctx.strokeStyle = "rgba(100, 255, 218, 0.05)";
+      for(let i=0; i<W; i+=TS) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+      for(let i=0; i<H; i+=TS) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
+
+      ctx.strokeStyle = "#334155";
+      ctx.lineWidth = TS - 8;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+      for(let i=1; i<pathPoints.length; i++) ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+      ctx.stroke();
+      
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = TS - 16;
+      ctx.stroke();
+
+      let endP = pathPoints[pathPoints.length-1];
+      ctx.fillStyle = "#0284c7"; 
+      ctx.beginPath(); ctx.arc(endP.x, endP.y, TS, 0, Math.PI*2); ctx.fill();
+
+      towers.forEach(t => t.draw());
+      enemies.forEach(e => e.draw());
+      projectiles.forEach(p => p.draw());
+  }
+
+  function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+  }
+
+  function startGame() {
+      state.isPlaying = true;
+      updateHUD();
+      if (!loopActive) {
+          loopActive = true;
+          gameLoop();
+      }
+  }
+
+  document.getElementById('btn-next-wave').addEventListener('click', () => {
+      document.getElementById('modal').style.display = 'none';
+      state.wave++;
+      currentWaveEnemies = 0;
+      state.isPlaying = true;
+      updateHUD();
+  });
+
+  document.getElementById('btn-restart').addEventListener('click', () => {
+      document.getElementById('modal').style.display = 'none';
+      document.getElementById('btn-restart').style.display = 'none';
+      document.getElementById('btn-next-wave').style.display = 'none';
+      
+      state = { hp: 20, coins: 150, wave: 1, isPlaying: true, frame: 0 };
+      enemies = [];
+      towers = [];
+      projectiles = [];
+      currentWaveEnemies = 0;
+      spawnTimer = 0;
+      
+      updateHUD();
+  });
+
+  async function saveProgress(isFinal = false, victory = false) {
+      const recordData = {
+          juego: "tower_defense_ambiental",
+          estudiante_id: currentStudent?.zipgrade || "Anon",
+          nombre: currentStudent?.nombre || "Anónimo",
+          oleadaAlcanzada: state.wave,
+          hpRestante: Math.ceil(state.hp),
+          estado: isFinal ? (victory ? "Victoria" : "Derrota") : "Oleada superada",
+          fecha: new Date().toISOString()
+      };
+
+      try {
+          await addDoc(collection(db, "QuimicaQuest_TD"), recordData);
+          return "<br><br><span style='color:#64ffda; font-size:12px;'>Progreso guardado en la red.</span>";
+      } catch (e) {
+          console.error("Error guardando:", e);
+          let offlineRecords = JSON.parse(localStorage.getItem('offline_td_records') || '[]');
+          offlineRecords.push(recordData);
+          localStorage.setItem('offline_td_records', JSON.stringify(offlineRecords));
+          return "<br><br><span style='color:#eab308; font-size:12px;'>Guardado local (Sin conexión).</span>";
+      }
+  }
+
+  async function showWaveModal() {
+      const modal = document.getElementById('modal');
+      const title = document.getElementById('modal-title');
+      const content = document.getElementById('modal-content');
+      const btnNext = document.getElementById('btn-next-wave');
+      const btnRestart = document.getElementById('btn-restart');
+      
+      modal.style.display = 'block';
+      btnRestart.style.display = 'none';
+      btnNext.style.display = 'none'; 
+      
+      title.innerText = `OLEADA ${state.wave} SUPERADA`;
+      title.style.color = "var(--accent2)";
+      content.innerHTML = `El ecosistema resiste. Has recibido 50 Eco-Puntos.<br><br><span style="color:#94a3b8">Sincronizando datos...</span>`;
+
+      let saveMsg = await saveProgress(false, false);
+      
+      content.innerHTML = `El ecosistema resiste. Has recibido 50 Eco-Puntos.<br><br>Prepárate para la oleada ${state.wave + 1}: <br><b style="color:${WAVES[state.wave].color}">${WAVES[state.wave].name}</b>${saveMsg}`;
+      btnNext.style.display = 'block';
+  }
+
+  async function endGame(victory) {
+      state.isPlaying = false;
+      const modal = document.getElementById('modal');
+      const title = document.getElementById('modal-title');
+      const content = document.getElementById('modal-content');
+      const btnRestart = document.getElementById('btn-restart');
+      const btnNext = document.getElementById('btn-next-wave');
+      
+      modal.style.display = 'block';
+      btnNext.style.display = 'none';
+      btnRestart.style.display = 'none'; 
+      
+      if (victory) {
+          title.innerText = "¡ECOSISTEMA SALVADO!";
+          title.style.color = "var(--accent2)";
+          content.innerHTML = `Excelente trabajo, <b>${currentStudent?.nombre || 'Estudiante'}</b>. Has balanceado el ecosistema mitigando los contaminantes.<br><br>HP Final: ${Math.ceil(state.hp)}`;
+      } else {
+          title.innerText = "NIVELES DE TOXICIDAD CRÍTICOS";
+          title.style.color = "var(--danger)";
+          content.innerHTML = `El río no resistió la carga contaminante. Estudia la ubicación estratégica de tus filtros químicos y vuelve a intentarlo.`;
+      }
+      
+      content.innerHTML += "<br><br><span style='color:#94a3b8'>Sincronizando datos finales...</span>";
+
+      let saveMsg = await saveProgress(true, victory);
+      
+      if (victory) {
+          content.innerHTML = `Excelente trabajo, <b>${currentStudent?.nombre || 'Estudiante'}</b>. Has balanceado el ecosistema mitigando los contaminantes.<br><br>HP Final: ${Math.ceil(state.hp)}${saveMsg}`;
+      } else {
+          content.innerHTML = `El río no resistió la carga contaminante. Estudia la ubicación estratégica de tus filtros químicos y vuelve a intentarlo.${saveMsg}`;
+      }
+      
+      btnRestart.style.display = 'block';
+  }
+
+</script>
+</body>
+</html>
