@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>QuimicaQuest - Defensa Ambiental</title>
+<title>PIAR: QuimicaQuest - Defensa Ambiental</title>
 <style>
 :root{
   --bg:#050a18;
@@ -90,7 +90,7 @@ input[type="text"] {
 <div id="wrap">
   
   <div id="login-modal" style="display:block;">
-      <h2 style="text-align:center;">PROYECTO AMBIENTAL</h2>
+      <h2 style="text-align:center;">PIAR - PROYECTO AMBIENTAL</h2>
       <p style="text-align:center;">Ingrese su código de estudiante para iniciar la defensa del ecosistema.</p>
       <input type="text" id="zip-input" placeholder="Ej: 101022026">
       <button class="btn btn-gold" id="btn-login">VERIFICAR CÓDIGO</button>
@@ -98,15 +98,15 @@ input[type="text"] {
   </div>
 
   <div id="intro-modal">
-      <h2 style="text-align:center; color:var(--accent2);">BARRERAS AMBIENTALES</h2>
+      <h2 style="text-align:center; color:var(--accent2);">PIAR: BARRERAS AMBIENTALES</h2>
       <div class="def-box">
-          <p style="margin-top:0;">Estudiante, tu misión es proteger el río de 10 oleadas de contaminación. Cuentas con tres tecnologías:</p>
+          <p style="margin-top:0;">Estudiante, tu misión es proteger el río de 12 oleadas de contaminación. Cuentas con tres tecnologías de limpieza:</p>
           <ul style="padding-left: 20px; margin-bottom: 0;">
               <li style="margin-bottom: 8px;"><b>💧 Estación Base:</b> Libera sustancias alcalinas para neutralizar. (Equilibrada)</li>
-              <li style="margin-bottom: 8px;"><b>🌳 Fitorremediación:</b> Filtros vegetales. (Mayor alcance, ataque lento)</li>
-              <li><b>⚡ Catalizador:</b> Acelera reacciones de degradación. (Menor alcance, ataque rapidísimo)</li>
+              <li style="margin-bottom: 8px;"><b>🌳 Fitorremediación:</b> Filtros con plantas que absorben toxinas. (Mayor alcance)</li>
+              <li><b>⚡ Catalizador:</b> Acelera reacciones para degradar químicos. (Ataque rapidísimo)</li>
           </ul>
-          <p style="margin-top:10px; font-size:12px; color:var(--gold);">💡 PISTA: Si debilitas un contaminante aunque no lo elimines, dañará menos al río. ¡Cada acierto te da 1 Eco-Punto!</p>
+          <p style="margin-top:10px; font-size:12px; color:var(--gold);">💡 PISTA VITAL: Si debilitas un contaminante aunque no lo elimines, dañará menos al río. ¡Cada acierto te da 0.5 Eco-Puntos para seguir construyendo!</p>
       </div>
       <button class="btn btn-gold" id="btn-start-game">COMENZAR DEFENSA</button>
   </div>
@@ -114,7 +114,7 @@ input[type="text"] {
   <div id="hud">
     <div class="stat stat-hp">❤️ SALUD RÍO: <span id="ui-hp">20</span></div>
     <div class="stat stat-eco">🌿 ECO-PUNTOS: <span id="ui-coins">150</span></div>
-    <div class="stat stat-wave">⚠️ OLEADA: <span id="ui-wave">1</span>/10</div>
+    <div class="stat stat-wave">⚠️ OLEADA: <span id="ui-wave">1</span>/12</div>
     <div style="margin-top:8px; border-top:1px solid #450a0a; padding-top:4px; font-size: 12px; color: #94a3b8;">
       Toca el mapa para construir.
     </div>
@@ -164,6 +164,33 @@ input[type="text"] {
   let currentStudent = null;
   let loopActive = false;
 
+  // --- AUDIO ENGINE (WEB AUDIO API) ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSound(freq, type, duration, vol=0.1) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function playBGM() {
+      // Melodía simple ambiental
+      const notes = [261.63, 329.63, 392.00, 523.25];
+      let i = 0;
+      setInterval(() => {
+          if (state.isPlaying) {
+              playSound(notes[i % notes.length], 'triangle', 2, 0.03);
+              i++;
+          }
+      }, 1000);
+  }
+
   document.getElementById('btn-login').addEventListener('click', async () => {
       const codeStr = document.getElementById('zip-input').value.trim();
       const msg = document.getElementById('login-msg');
@@ -181,6 +208,7 @@ input[type="text"] {
               currentStudent.zipgrade = codeStr; 
               document.getElementById('login-modal').style.display = 'none';
               document.getElementById('intro-modal').style.display = 'block';
+              if (audioCtx.state === 'suspended') audioCtx.resume();
           } else {
               msg.style.color = 'var(--danger)'; msg.innerText = "Código no encontrado.";
           }
@@ -191,7 +219,8 @@ input[type="text"] {
 
   document.getElementById('btn-start-game').addEventListener('click', () => {
       document.getElementById('intro-modal').style.display = 'none';
-      startGame();
+      playBGM();
+      startWaveWithCountdown();
   });
 
   const canvas = document.getElementById('game');
@@ -200,7 +229,7 @@ input[type="text"] {
   const W = 800; const H = 600; const TS = 40; 
   canvas.width = W; canvas.height = H;
 
-  let state = { hp: 20, coins: 150, wave: 1, isPlaying: false, frame: 0 };
+  let state = { hp: 20, coins: 150, wave: 1, isPlaying: false, frame: 0, countdown: 0 };
   let selectedTowerType = 'base';
   
   let enemies = [];
@@ -220,18 +249,20 @@ input[type="text"] {
       catalyst: { cost: 150, range: 90,  dmg: 15, cd: 20, color: '#f59e0b', proj: '#fde047' }  
   };
 
-  // AJUSTE: Velocidades reducidas para los más pesados (hexagon, boss, cloud)
+  // 12 OLEADAS CON ENSEÑANZA AMBIENTAL
   const WAVES = [
-      { count: 10, hp: 80,   spd: 1.4, rew: 5,  color: '#eab308', name: "Lluvia Ácida", shape: "drop" },
-      { count: 12, hp: 140,  spd: 1.5, rew: 5,  color: '#ef4444', name: "Óxidos de Nitrógeno", shape: "molecule" },
-      { count: 15, hp: 220,  spd: 0.8, rew: 6,  color: '#a855f7', name: "Metales Pesados", shape: "hexagon" },
-      { count: 20, hp: 350,  spd: 1.2, rew: 6,  color: '#64748b', name: "Smog Fotoquímico", shape: "cloud" },
-      { count: 15, hp: 500,  spd: 0.7, rew: 8,  color: '#ec4899', name: "Microplásticos", shape: "hexagon" },
-      { count: 25, hp: 400,  spd: 1.6, rew: 8,  color: '#84cc16', name: "Agroquímicos", shape: "drop" },
-      { count: 12, hp: 800,  spd: 0.6, rew: 10, color: '#f97316', name: "Lixiviados", shape: "cloud" },
-      { count: 30, hp: 600,  spd: 1.3, rew: 10, color: '#06b6d4', name: "Aguas Residuales", shape: "molecule" },
-      { count: 20, hp: 1200, spd: 0.5, rew: 15, color: '#8b5cf6', name: "Desechos Radiactivos", shape: "hexagon" },
-      { count: 1,  hp: 8000, spd: 0.4, rew: 100,color: '#000000', name: "Derrame de Crudo (JEFE)", shape: "boss" }
+      { count: 10, hp: 80,   spd: 1.4, rew: 5,  color: '#eab308', name: "Lluvia Ácida", shape: "drop", info: "La lluvia ácida altera el pH del agua, dañando las agallas de los peces y destruyendo flora acuática." },
+      { count: 12, hp: 140,  spd: 1.5, rew: 5,  color: '#ef4444', name: "Óxidos de Nitrógeno", shape: "molecule", info: "Producidos por vehículos e industrias. En el agua causan eutrofización: sobrepoblación de algas que asfixian el río." },
+      { count: 15, hp: 220,  spd: 0.8, rew: 6,  color: '#a855f7', name: "Metales Pesados", shape: "hexagon", info: "El plomo y mercurio no se degradan. Se acumulan en los peces (bioacumulación), intoxicando a quienes los consumen." },
+      { count: 20, hp: 350,  spd: 1.2, rew: 6,  color: '#64748b', name: "Smog Fotoquímico", shape: "cloud", info: "Aunque es contaminación del aire, la lluvia lava estas toxinas atmosféricas y las arrastra directamente a nuestros ríos." },
+      { count: 15, hp: 500,  spd: 0.7, rew: 8,  color: '#ec4899', name: "Microplásticos", shape: "hexagon", info: "Partículas plásticas invisibles. Los animales los tragan pensando que son alimento, bloqueando sus sistemas digestivos." },
+      { count: 25, hp: 400,  spd: 1.6, rew: 8,  color: '#84cc16', name: "Agroquímicos", shape: "drop", info: "Pesticidas y fertilizantes mal usados en la agricultura se filtran por la tierra hasta envenenar las aguas subterráneas." },
+      { count: 12, hp: 800,  spd: 0.6, rew: 10, color: '#f97316', name: "Lixiviados", shape: "cloud", info: "Líquidos oscuros y altamente tóxicos que escurren de los basureros a cielo abierto y contaminan los mantos acuíferos." },
+      { count: 30, hp: 600,  spd: 1.3, rew: 10, color: '#06b6d4', name: "Aguas Residuales", shape: "molecule", info: "Descargas de aguas negras sin tratar de las ciudades que introducen bacterias mortales y consumen el oxígeno del agua." },
+      { count: 20, hp: 1200, spd: 0.5, rew: 15, color: '#8b5cf6', name: "Desechos Radiactivos", shape: "hexagon", info: "Contaminación extrema que altera el ADN de las especies acuáticas, causando mutaciones severas y pérdida de biodiversidad." },
+      { count: 1,  hp: 8000, spd: 0.4, rew: 100,color: '#000000', name: "Derrame de Crudo (JEFE)", shape: "boss", info: "El petróleo crea una capa impermeable en la superficie. Bloquea la luz solar y el oxígeno, creando zonas muertas inmensas." },
+      { count: 40, hp: 1500, spd: 1.5, rew: 15, color: '#b91c1c', name: "Vertimiento Industrial Clandestino", shape: "molecule", info: "Químicos complejos arrojados ilegalmente por fábricas. Su combinación en el agua crea un cóctel devastador y difícil de limpiar." },
+      { count: 3,  hp: 15000, spd: 0.3, rew: 200,color: '#450a0a', name: "Colapso Ecológico (MEGA JEFE)", shape: "boss", info: "La acumulación total de nuestra irresponsabilidad ambiental. ¡Revertir este daño requiere medidas masivas y urgentes!" }
   ];
 
   let currentWaveEnemies = 0;
@@ -262,6 +293,7 @@ input[type="text"] {
                   let rawDamage = (this.shape === 'boss' ? 10 : 1) * ratio;
                   state.hp -= rawDamage; 
                   updateHUD();
+                  playSound(100, 'sawtooth', 0.3, 0.2); // Sonido de daño al río
                   this.hp = 0; 
               }
           } else {
@@ -335,6 +367,7 @@ input[type="text"] {
               }
               if (target) {
                   projectiles.push(new Projectile(this.x, this.y, target, this.spec));
+                  playSound(400 + Math.random()*200, 'sine', 0.1, 0.05); // Sonido disparo
                   this.timer = this.spec.cd;
               }
           }
@@ -391,9 +424,10 @@ input[type="text"] {
           let d = dist(this.x, this.y, this.target.x, this.target.y);
           if (d < this.spd) {
               this.target.hp -= this.spec.dmg;
-              // AJUSTE: Bono de 1 punto por acierto
-              state.coins += 1;
+              // RECOMPENSA AJUSTADA: 0.5 por tiro acertado
+              state.coins += 0.5;
               updateHUD();
+              playSound(800, 'square', 0.05, 0.02); // Sonido impacto
               return true; 
           } else {
               this.x += (this.target.x - this.x) / d * this.spd;
@@ -450,6 +484,7 @@ input[type="text"] {
           state.coins -= spec.cost;
           towers.push(new Tower(tx, ty, selectedTowerType));
           updateHUD();
+          playSound(200, 'sine', 0.2, 0.1); // Sonido construcción
       }
   }
 
@@ -463,7 +498,7 @@ input[type="text"] {
 
   function updateHUD() {
       document.getElementById('ui-hp').innerText = Math.ceil(Math.max(0, state.hp));
-      document.getElementById('ui-coins').innerText = Math.floor(state.coins);
+      document.getElementById('ui-coins').innerText = state.coins.toFixed(1);
       document.getElementById('ui-wave').innerText = Math.min(state.wave, WAVES.length);
   }
 
@@ -540,6 +575,18 @@ input[type="text"] {
       towers.forEach(t => t.draw());
       enemies.forEach(e => e.draw());
       projectiles.forEach(p => p.draw());
+
+      // Dibujar Conteo Regresivo
+      if (state.countdown > 0) {
+          ctx.fillStyle = "rgba(0,0,0,0.5)";
+          ctx.fillRect(0,0,W,H);
+          ctx.fillStyle = "var(--gold)";
+          ctx.font = "bold 120px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText(state.countdown, W/2, H/2 + 40);
+          ctx.font = "bold 30px monospace";
+          ctx.fillText("PREPARANDO DEFENSA...", W/2, H/2 + 100);
+      }
   }
 
   function gameLoop() {
@@ -548,21 +595,40 @@ input[type="text"] {
       requestAnimationFrame(gameLoop);
   }
 
-  function startGame() {
-      state.isPlaying = true;
+  // --- LOGICA DE CONTEO REGRESIVO ---
+  function startWaveWithCountdown() {
+      state.isPlaying = false;
+      state.countdown = 5;
       updateHUD();
+      
+      const cdInterval = setInterval(() => {
+          state.countdown--;
+          if (state.countdown > 0) {
+              playSound(600, 'sine', 0.1, 0.05); // "Beep" de reloj
+          }
+          if (state.countdown <= 0) {
+              clearInterval(cdInterval);
+              playSound(1000, 'sine', 0.5, 0.1); // "Beep" largo de inicio
+              startGame();
+          }
+      }, 1000);
+
       if (!loopActive) {
           loopActive = true;
           gameLoop();
       }
   }
 
+  function startGame() {
+      state.isPlaying = true;
+  }
+
   document.getElementById('btn-next-wave').addEventListener('click', () => {
       document.getElementById('modal').style.display = 'none';
       state.wave++;
       currentWaveEnemies = 0;
-      state.isPlaying = true;
       updateHUD();
+      startWaveWithCountdown();
   });
 
   document.getElementById('btn-restart').addEventListener('click', () => {
@@ -570,7 +636,7 @@ input[type="text"] {
       document.getElementById('btn-restart').style.display = 'none';
       document.getElementById('btn-next-wave').style.display = 'none';
       
-      state = { hp: 20, coins: 150, wave: 1, isPlaying: true, frame: 0 };
+      state = { hp: 20, coins: 150, wave: 1, isPlaying: false, frame: 0, countdown: 0 };
       enemies = [];
       towers = [];
       projectiles = [];
@@ -578,6 +644,7 @@ input[type="text"] {
       spawnTimer = 0;
       
       updateHUD();
+      startWaveWithCountdown();
   });
 
   async function saveProgress(isFinal = false, victory = false) {
@@ -616,11 +683,17 @@ input[type="text"] {
       
       title.innerText = `OLEADA ${state.wave} SUPERADA`;
       title.style.color = "var(--accent2)";
-      content.innerHTML = `El ecosistema resiste. Has recibido 50 Eco-Puntos.<br><br><span style="color:#94a3b8">Sincronizando datos...</span>`;
+      
+      let nextWaveData = WAVES[state.wave]; // Datos de la siguiente oleada
 
       let saveMsg = await saveProgress(false, false);
       
-      content.innerHTML = `El ecosistema resiste. Has recibido 50 Eco-Puntos.<br><br>Prepárate para la oleada ${state.wave + 1}: <br><b style="color:${WAVES[state.wave].color}">${WAVES[state.wave].name}</b>${saveMsg}`;
+      content.innerHTML = `El ecosistema resiste. Has recibido 50 Eco-Puntos.<br><br>
+      <div style="background:rgba(255,204,0,0.1); padding:10px; border-left:3px solid var(--gold); margin:10px 0; font-size:13px; line-height: 1.4;">
+          <b>📚 APRENDIZAJE AMBIENTAL:</b><br>${nextWaveData.info}
+      </div>
+      Prepárate para la oleada ${state.wave + 1}: <br><b style="color:${nextWaveData.color}">${nextWaveData.name}</b>${saveMsg}`;
+      
       btnNext.style.display = 'block';
   }
 
@@ -637,23 +710,26 @@ input[type="text"] {
       btnRestart.style.display = 'none'; 
       
       if (victory) {
+          playSound(600, 'sine', 0.1, 0.1); 
+          setTimeout(()=>playSound(800, 'sine', 0.5, 0.1), 150);
           title.innerText = "¡ECOSISTEMA SALVADO!";
           title.style.color = "var(--accent2)";
-          content.innerHTML = `Excelente trabajo, <b>${currentStudent?.nombre || 'Estudiante'}</b>. Has balanceado el ecosistema mitigando los contaminantes.<br><br>HP Final: ${Math.ceil(state.hp)}`;
       } else {
+          playSound(100, 'sawtooth', 1, 0.2); 
           title.innerText = "NIVELES DE TOXICIDAD CRÍTICOS";
           title.style.color = "var(--danger)";
-          content.innerHTML = `El río no resistió la carga contaminante. Estudia la ubicación estratégica de tus filtros químicos y vuelve a intentarlo.`;
       }
       
-      content.innerHTML += "<br><br><span style='color:#94a3b8'>Sincronizando datos finales...</span>";
+      content.innerHTML = "<span style='color:#94a3b8'>Sincronizando datos finales...</span>";
 
       let saveMsg = await saveProgress(true, victory);
       
       if (victory) {
-          content.innerHTML = `Excelente trabajo, <b>${currentStudent?.nombre || 'Estudiante'}</b>. Has balanceado el ecosistema mitigando los contaminantes.<br><br>HP Final: ${Math.ceil(state.hp)}${saveMsg}`;
+          content.innerHTML = `Excelente trabajo, <b>${currentStudent?.nombre || 'Estudiante'}</b>. Has balanceado el ecosistema mitigando los contaminantes.<br><br>
+          <div style="color:var(--accent2); font-size:13px; margin:10px 0;">🌍 Recuerda: En el mundo real, la mejor defensa es la prevención. ¡Cuidemos nuestros ríos!</div>
+          HP Final: ${Math.ceil(state.hp)}${saveMsg}`;
       } else {
-          content.innerHTML = `El río no resistió la carga contaminante. Estudia la ubicación estratégica de tus filtros químicos y vuelve a intentarlo.${saveMsg}`;
+          content.innerHTML = `El río no resistió la carga contaminante. Recuerda lo aprendido sobre los componentes tóxicos, estudia la ubicación estratégica de tus barreras y vuelve a intentarlo.${saveMsg}`;
       }
       
       btnRestart.style.display = 'block';
